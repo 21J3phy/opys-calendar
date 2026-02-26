@@ -590,6 +590,37 @@ function App() {
         <div className="floating-status">{status}</div>
       )}
 
+      {selectedEvent && (
+        <div className="event-modal-overlay" onClick={() => setSelectedEventId(null)}>
+          <div className="event-modal-content" onClick={(e) => e.stopPropagation()}>
+            <header className="event-modal-header">
+              <h3 className="event-modal-title">{selectedEvent.title || "(No Title)"}</h3>
+              <button className="ghost-btn" onClick={() => setSelectedEventId(null)}>✕</button>
+            </header>
+            <div className="event-modal-body">
+              <p><strong>Time:</strong> {formatDateRange(selectedEvent)}</p>
+              <p><strong>Category:</strong> {categories.find(c => c.id === selectedEvent.category)?.label || selectedEvent.category || "None"}</p>
+              <p><strong>Status:</strong> {selectedEvent.completed ? "Completed 🟢" : "Pending ⭕️"}</p>
+            </div>
+            <div className="event-modal-actions">
+              <button
+                className="sync-button"
+                onClick={() => void toggleCompleted(selectedEvent.id, !selectedEvent.completed)}
+              >
+                {selectedEvent.completed ? "Mark Incomplete" : "Mark Complete"}
+              </button>
+              <button
+                className="ghost-btn"
+                style={{ color: "var(--accent, #ff3b30)" }}
+                onClick={() => void deleteSelected()}
+              >
+                Delete Event
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="calendar-wrapper-relative">
         <div className="category-chips-overlay">
           {categories.map((category: CalendarCategory) => (
