@@ -1,3 +1,4 @@
+import "dotenv/config";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
@@ -96,6 +97,34 @@ class ApiError extends Error {
 }
 
 const sessions = new Map<string, SessionData>();
+const sessionStorePath = path.join(root, ".calendar-sessions.json");
+
+function loadSessionsFromDisk() {
+  if (!fs.existsSync(sessionStorePath)) return;
+  try {
+    const raw = fs.readFileSync(sessionStorePath, "utf-8");
+    const parsed = JSON.parse(raw) as Record<string, SessionData>;
+    Object.entries(parsed || {}).forEach(([sid, data]) => {
+      sessions.set(sid, data || {});
+    });
+  } catch {
+    // ignore corrupt session store
+  }
+}
+
+function persistSessionsToDisk() {
+  try {
+    const data: Record<string, SessionData> = {};
+    sessions.forEach((value, key) => {
+      data[key] = value;
+    });
+    fs.writeFileSync(sessionStorePath, JSON.stringify(data, null, 2));
+  } catch {
+    // ignore write errors
+  }
+}
+
+loadSessionsFromDisk();
 
 declare global {
   namespace Express {
@@ -773,9 +802,21 @@ app.use((req, res, next) => {
     return;
   }
 
+  if (sidFromCookie && !existing) {
+    loadSessionsFromDisk();
+    const reloaded = sessions.get(sidFromCookie);
+    if (reloaded) {
+      req.sessionId = sidFromCookie;
+      req.sessionData = reloaded;
+      next();
+      return;
+    }
+  }
+
   const sid = `sid_${nanoid(24)}`;
   const session: SessionData = {};
   sessions.set(sid, session);
+  persistSessionsToDisk();
 
   req.sessionId = sid;
   req.sessionData = session;
@@ -948,8 +989,9 @@ app.get("/api/google/auth/start", (req, res) => {
     return;
   }
 
-  const state = `state_${nanoid(18)}`;
-  req.sessionData.oauthState = state;
+  const stateNonce = `state_${nanoid(18)}`;
+  const state = `${req.sessionId}:${stateNonce}`;
+  req.sessionData.oauthState = stateNonce;
   const config = getGoogleConfig();
 
   const params = new URLSearchParams({
@@ -978,7 +1020,22 @@ app.get("/api/google/auth/callback", async (req, res) => {
     return;
   }
 
-  if (!state || !code || req.sessionData.oauthState !== state) {
+  const [stateSid, stateNonce] = state.split(":");
+  if (stateSid && (!req.sessionId || req.sessionId !== stateSid)) {
+    const restored = sessions.get(stateSid);
+    if (restored) {
+      req.sessionId = stateSid;
+      req.sessionData = restored;
+      res.cookie(sessionCookieName, stateSid, {
+        httpOnly: true,
+        sameSite: "lax",
+        maxAge: 1000 * 60 * 60 * 24 * 30,
+        path: "/"
+      });
+    }
+  }
+
+  if (!stateNonce || !code || req.sessionData.oauthState !== stateNonce) {
     res.redirect(`${redirectBase}?google_auth=error&reason=state_mismatch`);
     return;
   }
@@ -1014,6 +1071,7 @@ app.get("/api/google/auth/callback", async (req, res) => {
 
     req.sessionData.user = await fetchGoogleUser(req.sessionData);
     req.sessionData.selectedCalendarId = undefined;
+    persistSessionsToDisk();
 
     res.redirect(`${redirectBase}?google_auth=success`);
   } catch (callbackError) {
@@ -1021,6 +1079,7 @@ app.get("/api/google/auth/callback", async (req, res) => {
     req.sessionData.tokens = undefined;
     req.sessionData.user = undefined;
     req.sessionData.selectedCalendarId = undefined;
+    persistSessionsToDisk();
     res.redirect(`${redirectBase}?google_auth=error&reason=${encodeURIComponent(reason)}`);
   }
 });
@@ -1030,6 +1089,7 @@ app.post("/api/google/auth/logout", (req, res) => {
   req.sessionData.tokens = undefined;
   req.sessionData.user = undefined;
   req.sessionData.selectedCalendarId = undefined;
+  persistSessionsToDisk();
   res.json({ ok: true });
 });
 
@@ -1060,6 +1120,7 @@ app.post("/api/google/calendars/select", async (req, res) => {
     }
 
     req.sessionData.selectedCalendarId = calendarId;
+    persistSessionsToDisk();
     res.json({ selectedCalendarId: calendarId });
   } catch (error) {
     jsonError(res, error, "Unable to select Google calendar");

@@ -2,7 +2,7 @@
 version: 1
 title: Human-Friendly Calendar
 timezone: local
-updatedAt: 2026-02-26T00:09:43.085Z
+updatedAt: 2026-02-26T00:08:45.592Z
 categories:
   - id: math
     label: Math
@@ -66,8 +66,6 @@ The authoritative event data lives in the `Event Records` section.
 - [ ] `evt_pN0rDFdG` | 2026-02-25 22:15 -> 2026-02-25 23:15 | **Chem missing work (during B2A call)** (`chem`)
 - [ ] `evt_aRj3m08n` | 2026-02-25 23:15 -> 2026-02-26 00:15 | **Multi practice** (`multi`)
 - [ ] `evt_seed001` | 2026-02-26 09:00 -> 2026-02-26 10:00 | **Weekly planning** (`projects`)
-- [ ] `evt_wI7n57h0` | 2026-02-26 09:35 -> 2026-02-26 09:40 | **Overlap allowed temp** (`life`)
-- [ ] `evt_03Idi_k4` | 2026-02-26 10:00 -> 2026-02-26 10:15 | **Conflict test temp** (`life`)
 - [ ] `evt_seed002` | 2026-02-26 14:00 -> 2026-02-26 15:00 | **Math study block** (`math`)
 
 ## Event Records
@@ -184,34 +182,6 @@ category: projects
 completed: false
 location: Home office
 notes: Review priorities and blockers for the week
-```
-
-### evt_wI7n57h0 - Overlap allowed temp
-
-```event
-id: evt_wI7n57h0
-externalId: ext_5MuZ75QWM8GI
-updatedAt: 2026-02-26T00:09:43.085Z
-title: Overlap allowed temp
-start: 2026-02-26T09:35:00.000Z
-end: 2026-02-26T09:40:00.000Z
-allDay: false
-category: life
-completed: false
-```
-
-### evt_03Idi_k4 - Conflict test temp
-
-```event
-id: evt_03Idi_k4
-externalId: ext__9HTaH-Rxl-9
-updatedAt: 2026-02-26T00:09:38.518Z
-title: Conflict test temp
-start: 2026-02-26T10:00:00.000Z
-end: 2026-02-26T10:15:00.000Z
-allDay: false
-category: life
-completed: false
 ```
 
 ### evt_seed002 - Math study block

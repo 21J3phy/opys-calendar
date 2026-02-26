@@ -33,13 +33,30 @@ npm run cli -- <command>
 ## Safe Update Flow
 
 1. Add (preferred for new events):
-   `npm run cli -- add --title "..." --start "<ISO>" --end "<ISO>" --category <id>`
+   `npm run cli -- add --title "..." --start "<ISO>" --end "<ISO>" --category <id> [--shift-to-next|--allow-overlap]`
 2. Update:
    `npm run cli -- update --id <event_id> [fields...]`
+   If changing `--start` or `--end`, include `--shift-to-next` or `--allow-overlap` in non-interactive runs.
 3. Check/uncheck:
    `npm run cli -- check --id <event_id>` or `--undone`
 4. Delete:
    `npm run cli -- delete --id <event_id>`
+
+Conflict handling:
+
+- `add` and time-changing `update` detect overlaps with existing events.
+- Interactive runs can choose accept overlap, shift to next available slot, or provide a custom time.
+- Non-interactive runs:
+- `--shift-to-next` to auto-resolve to the next open window.
+- `--allow-overlap` to keep the requested overlapping time.
+
+Agent snapshot output:
+
+- Every mutating CLI command writes a rolling markdown snapshot.
+- Default path: `/Users/nrav/.openclaw/workspace/recent-calendar.md`
+- Override with `CALENDAR_AGENT_SNAPSHOT`.
+- Recent window defaults to 14 days and is configurable with `CALENDAR_AGENT_DAYS`.
+- Snapshot also includes upcoming 7 days when events exist.
 
 ## UI Constraints
 

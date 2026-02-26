@@ -39,7 +39,7 @@ type EditableCalendarEventArg = {
 };
 
 async function fetchCalendar(): Promise<CalendarDocument> {
-  const response = await fetch("/api/calendar");
+  const response = await fetch("/api/calendar", { credentials: "include" });
   if (!response.ok) {
     throw new Error("Unable to load calendar data");
   }
@@ -47,7 +47,7 @@ async function fetchCalendar(): Promise<CalendarDocument> {
 }
 
 async function fetchGoogleStatus(): Promise<GoogleAuthStatus> {
-  const response = await fetch("/api/google/auth/status");
+  const response = await fetch("/api/google/auth/status", { credentials: "include" });
   if (!response.ok) {
     throw new Error("Unable to load Google auth status");
   }
@@ -95,11 +95,13 @@ function App() {
 
         if (googleAuth === "success") {
           setStatus("Google account connected. Choose a calendar and sync.");
+          void refreshGoogle();
           window.history.replaceState({}, "", window.location.pathname);
         }
 
         if (googleAuth === "error") {
           setStatus(`Google auth failed${reason ? `: ${reason}` : ""}`);
+          void refreshGoogle();
           window.history.replaceState({}, "", window.location.pathname);
         }
 
@@ -144,6 +146,7 @@ function App() {
     const response = await fetch(`/api/events/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({ updates })
     });
 
@@ -183,7 +186,8 @@ function App() {
     if (!selectedEvent) return;
 
     const response = await fetch(`/api/events/${selectedEvent.id}`, {
-      method: "DELETE"
+      method: "DELETE",
+      credentials: "include"
     });
 
     if (!response.ok) {
@@ -201,6 +205,7 @@ function App() {
       const response = await fetch("/api/google/calendars/select", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ calendarId })
       });
 
@@ -225,7 +230,8 @@ function App() {
     setSyncing(true);
     try {
       const response = await fetch("/api/google/sync", {
-        method: "POST"
+        method: "POST",
+        credentials: "include"
       });
 
       const body = (await response.json().catch(() => ({}))) as {
@@ -249,7 +255,7 @@ function App() {
   async function signOutGoogle() {
     setAuthWorking(true);
     try {
-      await fetch("/api/google/auth/logout", { method: "POST" });
+      await fetch("/api/google/auth/logout", { method: "POST", credentials: "include" });
       await refreshGoogle();
       setStatus("Signed out from Google");
     } finally {
@@ -380,6 +386,7 @@ function App() {
             eventResize={handleDragOrResize}
             eventClick={(arg) => setSelectedEventId(arg.event.id)}
             eventContent={renderEventContent}
+            nowIndicator
             height="auto"
           />
         </section>

@@ -63,7 +63,12 @@ Optional:
 
 ```bash
 export PORT="8787"
+export CALENDAR_AGENT_SNAPSHOT="/Users/nrav/.openclaw/workspace/recent-calendar.md"
+export CALENDAR_AGENT_DAYS="14"
 ```
+
+- `CALENDAR_AGENT_SNAPSHOT`: where CLI writes the rolling markdown snapshot after each calendar mutation.
+- `CALENDAR_AGENT_DAYS`: how many past days to include in snapshot "Recent" (default `14`).
 
 ### 4) Run and connect in UI
 
@@ -107,11 +112,30 @@ Examples:
 npm run cli -- summary
 npm run cli -- add --title "Physics lab" --start "2026-02-26T14:00:00.000Z" --end "2026-02-26T15:30:00.000Z" --category school
 npm run cli -- update --id evt_abc12345 --notes "Bring workbook" --done
+npm run cli -- add --title "Standup" --start "2026-02-26T09:00:00.000Z" --end "2026-02-26T09:30:00.000Z" --shift-to-next
+npm run cli -- update --id evt_abc12345 --start "2026-02-26T14:00:00.000Z" --end "2026-02-26T15:00:00.000Z" --allow-overlap
 npm run cli -- check --id evt_abc12345 --undone
 npm run cli -- export --out backup-calendar.md
 npm run cli -- import --in backup-calendar.md
 npm run cli -- delete --id evt_abc12345
 ```
+
+Conflict behavior for `add` and time-changing `update`:
+
+- CLI detects overlapping events.
+- Interactive mode prompts: accept overlap, shift to next open slot, or enter a custom time.
+- Non-interactive/agent mode:
+- `--allow-overlap` to keep requested time even with conflicts.
+- `--shift-to-next` to auto-move to the next non-overlapping window.
+
+Snapshot behavior:
+
+- Every mutating CLI command (`import`, `add`, `update`, `check`, `delete`) writes a rolling markdown snapshot.
+- Default snapshot path: `/Users/nrav/.openclaw/workspace/recent-calendar.md`
+- Snapshot contains:
+- Recent window: last `CALENDAR_AGENT_DAYS` days (default `14`)
+- Upcoming window: next `7` days (when events are present)
+- Compact markdown tables for agent-friendly scanning.
 
 ## Key Files
 

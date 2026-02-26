@@ -144,9 +144,9 @@ async function promptConflictResolution(
     return { start: payload.start, end: payload.end, acceptedOverlap: true, shifted: false };
   }
 
-  const durationMs = endMs - startMs;
-  const nextWindow = findNextAvailableWindow(document, startMs, durationMs, excludeId);
+  const getNextWindow = (): TimeRange => findNextAvailableWindow(document, startMs, endMs - startMs, excludeId);
   if (shiftToNext) {
+    const nextWindow = getNextWindow();
     return {
       start: new Date(nextWindow.startMs).toISOString(),
       end: new Date(nextWindow.endMs).toISOString(),
@@ -168,6 +168,7 @@ async function promptConflictResolution(
         `- ${conflict.event.id} | ${formatWindow(conflict.startMs, conflict.endMs)} | ${conflict.event.title}`
       );
     }
+    const nextWindow = getNextWindow();
     console.log(`Suggestion (next available): ${formatWindow(nextWindow.startMs, nextWindow.endMs)}`);
   };
 
@@ -190,6 +191,7 @@ async function promptConflictResolution(
       }
 
       if (choice === "2" || choice.toLowerCase() === "shift") {
+        const nextWindow = getNextWindow();
         return {
           start: new Date(nextWindow.startMs).toISOString(),
           end: new Date(nextWindow.endMs).toISOString(),
@@ -244,7 +246,7 @@ function parsePositiveInt(value: string | undefined, fallback: number): number {
 
 function toSnapshotRow(event: CalendarEvent): string {
   const status = event.completed ? "x" : " ";
-  return `| [${status}] | ${formatIsoCompact(event.start)} | ${formatIsoCompact(event.end)} | ${event.title.replace(/\|/g, "\\|")} | ${event.category} | ${event.id} |`;
+  return `| [${status}] | ${formatIsoCompact(event.start)} | ${formatIsoCompact(event.end)} | ${event.title.replace(/\|/g, "\\|")} | ${event.category.replace(/\|/g, "\\|")} | ${event.id.replace(/\|/g, "\\|")} |`;
 }
 
 function buildSnapshotSection(events: CalendarEvent[]): string {
@@ -279,7 +281,10 @@ async function writeRecentSnapshot(document: CalendarDocument, overridePath?: st
   const upcomingToMs = nowMs + upcomingWindowDays * dayMs;
 
   const recentEvents = collectWindowEvents(document, recentFromMs, nowMs);
-  const upcomingEvents = collectWindowEvents(document, nowMs + 1, upcomingToMs);
+  const upcomingEvents = document.events.filter((event) => {
+    const { startMs } = parseEventRange(event);
+    return startMs > nowMs && startMs <= upcomingToMs;
+  });
 
   const snapshot = `# Calendar Snapshot
 
