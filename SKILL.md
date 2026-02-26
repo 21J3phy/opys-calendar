@@ -1,3 +1,14 @@
+---
+name: opys-calendar-skill
+description: A local markdown-backed calendar with CLI and optional two-way Google Calendar sync.
+env:
+  - GOOGLE_CLIENT_ID
+  - GOOGLE_CLIENT_SECRET
+  - GOOGLE_REDIRECT_URI
+  - APP_BASE_URL
+  - CALENDAR_AGENT_SNAPSHOT
+  - CALENDAR_AGENT_DAYS
+---
 # Calendar Markdown + Google Sync Skill
 
 Use this skill to query/update the local markdown-backed calendar safely and sync it with Google Calendar.
