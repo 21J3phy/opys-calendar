@@ -1,4 +1,4 @@
-# Human-Friendly Calendar (Markdown-Backed + Google Calendar Sync)
+# Opy's Calendar (Markdown-Backed + Google Calendar Sync)
 
 A local-first calendar app where every event lives in `calendar.md`, with optional two-way sync to Google Calendar.
 

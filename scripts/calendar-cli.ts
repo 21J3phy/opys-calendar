@@ -553,6 +553,67 @@ program
     printSnapshotResult(snapshotResult);
   });
 
+program
+  .command("category-add")
+  .description("Add a new category/tag")
+  .requiredOption("--id <id>", "Category id")
+  .requiredOption("--label <label>", "Display label")
+  .requiredOption("--color <hex>", "Hex color, e.g. #9ca3af")
+  .option("--description <text>", "Description")
+  .action(async (options) => {
+    const document = await loadCalendarFromFile(calendarPath);
+    const id = String(options.id).trim();
+    if (!id) throw new Error("Category id is required");
+    if (document.frontmatter.categories.some((cat) => cat.id === id)) {
+      throw new Error(`Category already exists: ${id}`);
+    }
+
+    document.frontmatter.categories.push({
+      id,
+      label: String(options.label),
+      color: String(options.color),
+      description: options.description ? String(options.description) : ""
+    });
+
+    const snapshotResult = await saveWithSnapshot(document);
+    console.log(`Added category ${id}`);
+    printSnapshotResult(snapshotResult);
+  });
+
+program
+  .command("category-remove")
+  .description("Remove a category/tag")
+  .requiredOption("--id <id>", "Category id")
+  .option("--reassign <id>", "Reassign events to this category (default: life)", "life")
+  .action(async (options) => {
+    const document = await loadCalendarFromFile(calendarPath);
+    const id = String(options.id).trim();
+    if (!id) throw new Error("Category id is required");
+    const reassign = String(options.reassign || "life").trim();
+
+    if (!document.frontmatter.categories.some((cat) => cat.id === id)) {
+      throw new Error(`Category not found: ${id}`);
+    }
+    if (id === reassign) {
+      throw new Error("Reassign category must be different from the removed category");
+    }
+    if (!document.frontmatter.categories.some((cat) => cat.id === reassign)) {
+      throw new Error(`Reassign category not found: ${reassign}`);
+    }
+
+    document.frontmatter.categories = document.frontmatter.categories.filter((cat) => cat.id !== id);
+    for (const event of document.events) {
+      if (event.category === id) {
+        event.category = reassign;
+        event.updatedAt = nowIso();
+      }
+    }
+
+    const snapshotResult = await saveWithSnapshot(document);
+    console.log(`Removed category ${id}. Reassigned events to ${reassign}.`);
+    printSnapshotResult(snapshotResult);
+  });
+
 program.parseAsync(process.argv).catch((error) => {
   console.error(error instanceof Error ? error.message : String(error));
   process.exit(1);

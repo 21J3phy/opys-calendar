@@ -8,9 +8,9 @@ import type { CalendarCategory, CalendarDocument, CalendarEvent } from "./types"
 const EVENT_BLOCK_REGEX = /```event\n([\s\S]*?)```/g;
 
 export const DEFAULT_CATEGORIES: CalendarCategory[] = [
-  { id: "school", label: "School", color: "#2f63ff", description: "Classes, homework, studying" },
-  { id: "projects", label: "Projects", color: "#0ea5a4", description: "Builds, client work, coding sprints" },
-  { id: "life", label: "Life", color: "#e11d48", description: "Family, errands, admin, personal" }
+  { id: "school", label: "School", color: "#3f51b5", description: "Classes, homework, studying" },
+  { id: "projects", label: "Projects", color: "#039be5", description: "Builds, client work, coding sprints" },
+  { id: "life", label: "Life", color: "#d50000", description: "Family, errands, admin, personal" }
 ];
 
 function nowIso(): string {
@@ -74,7 +74,7 @@ export function createDefaultCalendar(): CalendarDocument {
   return {
     frontmatter: {
       version: 1,
-      title: "Human-Friendly Calendar",
+      title: "Opy's Calendar",
       timezone: "local",
       updatedAt: now,
       categories: DEFAULT_CATEGORIES
@@ -237,7 +237,7 @@ export function parseCalendarMarkdown(markdown: string): CalendarDocument {
 
   const frontmatter = {
     version: typeof fm.version === "number" ? fm.version : 1,
-    title: typeof fm.title === "string" ? fm.title : "Human-Friendly Calendar",
+    title: typeof fm.title === "string" ? fm.title : "Opy's Calendar",
     timezone: typeof fm.timezone === "string" ? fm.timezone : "local",
     updatedAt: typeof fm.updatedAt === "string" ? fm.updatedAt : nowIso(),
     categories: categories.length ? categories : DEFAULT_CATEGORIES

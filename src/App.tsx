@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
@@ -63,6 +63,8 @@ function formatDateRange(event: CalendarEvent): string {
   return `${start} -> ${end}`;
 }
 
+import StatsView from "./StatsView";
+
 function App() {
   const [document, setDocument] = useState<CalendarDocument | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
@@ -72,10 +74,49 @@ function App() {
   const [authWorking, setAuthWorking] = useState(false);
   const [slotDuration, setSlotDuration] = useState<string>(() => localStorage.getItem("slotDuration") || "00:15:00");
   const [snapshotDays, setSnapshotDays] = useState<number>(14);
+  const [workingHoursStart, setWorkingHoursStart] = useState<string>("09:00");
+  const [workingHoursEnd, setWorkingHoursEnd] = useState<string>("17:00");
+  const [workingDays, setWorkingDays] = useState<number[]>([1, 2, 3, 4, 5]);
+  const [darkMode, setDarkMode] = useState<boolean>(() => localStorage.getItem("theme") === "dark");
+  const [view, setView] = useState<"calendar" | "settings" | "stats">("calendar");
+  const calendarRef = useRef<FullCalendar>(null);
+
+  // To throttle horizontal scroll events
+  const scrollTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  const handleWheel = (e: React.WheelEvent) => {
+    // Only intercept horizontal scrolls
+    if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && Math.abs(e.deltaX) > 10) {
+      if (scrollTimeout.current) return; // Prevent rapid-fire scrolling
+
+      const calendarApi = calendarRef.current?.getApi();
+      if (!calendarApi) return;
+
+      if (e.deltaX > 0) {
+        calendarApi.next();
+      } else {
+        calendarApi.prev();
+      }
+
+      scrollTimeout.current = setTimeout(() => {
+        scrollTimeout.current = null;
+      }, 300); // 300ms throttle
+    }
+  };
 
   useEffect(() => {
     localStorage.setItem("slotDuration", slotDuration);
   }, [slotDuration]);
+
+  useEffect(() => {
+    if (darkMode) {
+      window.document.documentElement.setAttribute("data-theme", "dark");
+      localStorage.setItem("theme", "dark");
+    } else {
+      window.document.documentElement.removeAttribute("data-theme");
+      localStorage.setItem("theme", "light");
+    }
+  }, [darkMode]);
 
   useEffect(() => {
     async function loadSettings() {
@@ -86,6 +127,9 @@ function App() {
           if (typeof data.snapshotDays === "number") {
             setSnapshotDays(data.snapshotDays);
           }
+          if (typeof data.workingHoursStart === "string") setWorkingHoursStart(data.workingHoursStart);
+          if (typeof data.workingHoursEnd === "string") setWorkingHoursEnd(data.workingHoursEnd);
+          if (Array.isArray(data.workingDays)) setWorkingDays(data.workingDays);
         }
       } catch {
         // ignore
@@ -105,6 +149,19 @@ function App() {
       setStatus(`Snapshot days updated to ${days}`);
     } catch {
       setStatus("Failed to update snapshot days");
+    }
+  }
+
+  async function updateSettings(updates: Record<string, unknown>) {
+    try {
+      await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates)
+      });
+      setStatus("Settings saved");
+    } catch {
+      setStatus("Failed to save settings");
     }
   }
 
@@ -344,134 +401,207 @@ function App() {
     }
   }
 
-
-
   const selectedGoogleCalendar = google.calendars?.find((item) => item.id === google.selectedCalendarId);
 
-  return (
-    <div className="app-shell">
-      <header className="app-header">
-        <div>
-          <h1>Human-Friendly Calendar</h1>
-          <p>Drag, resize, and check off task-style events. New events are created by CLI agents only.</p>
-        </div>
-        <div className="status-pill">{status}</div>
-      </header>
+  if (view === "stats") {
+    return (
+      <StatsView
+        document={document}
+        categories={categories}
+        workingHoursStart={workingHoursStart}
+        workingHoursEnd={workingHoursEnd}
+        workingDays={workingDays}
+        onClose={() => setView("calendar")}
+      />
+    );
+  }
 
-      <section className="google-panel">
-        {!google.configured ? (
-          <p className="google-help">
-            Google OAuth is not configured. Add `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_REDIRECT_URI` in
-            your server environment.
-          </p>
-        ) : null}
+  if (view === "settings") {
+    return (
+      <div className="settings-page">
+        <header className="settings-header">
+          <h2>Settings</h2>
+          <button className="ghost-btn" onClick={() => setView("calendar")}>
+            Done
+          </button>
+        </header>
 
-        {google.configured && !google.authenticated ? (
-          <a className="auth-link" href="/api/google/auth/start">
-            Sign in with Google
-          </a>
-        ) : null}
-
-        {google.configured && google.authenticated ? (
-          <div className="google-controls">
-            <div className="google-user-row">
-              <div>
-                Connected as <strong>{google.user?.email}</strong>
-              </div>
-              <button type="button" onClick={() => void signOutGoogle()} disabled={authWorking} className="ghost-btn">
-                {authWorking ? "Signing out..." : "Sign out"}
-              </button>
-            </div>
-
-            <div className="calendar-buttons">
-              {(google.calendars || []).map((calendar) => {
-                const selected = google.selectedCalendarId === calendar.id;
-                return (
-                  <button
-                    key={calendar.id}
-                    type="button"
-                    onClick={() => void selectGoogleCalendar(calendar.id)}
-                    className={`calendar-button ${selected ? "selected" : ""}`}
-                  >
-                    {calendar.summary}
-                    {calendar.primary ? " (Primary)" : ""}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="sync-row">
-              <button
-                type="button"
-                onClick={() => void syncGoogleCalendar()}
-                disabled={syncing || !google.selectedCalendarId}
-                className="sync-button"
-              >
-                {syncing ? "Syncing..." : "Sync Now"}
-              </button>
-              <span className="sync-hint">
-                {selectedGoogleCalendar
-                  ? `Selected calendar: ${selectedGoogleCalendar.summary}`
-                  : "Select a Google Calendar to start two-way sync"}
-              </span>
-            </div>
-
-            <details className="settings-panel-inline">
-              <summary>Settings</summary>
-              <div className="settings-content">
-                <div>
-                  <label>Calendar Slot Size</label>
-                  <select
-                    value={slotDuration}
-                    onChange={(e) => setSlotDuration(e.target.value)}
-                  >
-                    <option value="00:15:00">15 minutes (4 slots/hour)</option>
-                    <option value="00:30:00">30 minutes (2 slots/hour)</option>
-                    <option value="01:00:00">60 minutes (1 slot/hour)</option>
-                  </select>
-                </div>
-                <div>
-                  <label>Agent Snapshot Days</label>
-                  <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-                    <input
-                      type="number"
-                      value={snapshotDays}
-                      onChange={(e) => setSnapshotDays(parseInt(e.target.value) || 1)}
-                      onBlur={(e) => void updateSnapshotDays(parseInt(e.target.value) || 14)}
-                      min="1"
-                      max="365"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => void updateSnapshotDays(snapshotDays)}
-                      className="sync-button"
-                    >
-                      Save
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </details>
+        <div className="settings-grid">
+          <div className="settings-card">
+            <h3>Appearance</h3>
+            <button type="button" onClick={() => setDarkMode(!darkMode)} className="ghost-btn">
+              {darkMode ? "☀️ Switch to Light Mode" : "🌙 Switch to Dark Mode"}
+            </button>
           </div>
-        ) : null}
-      </section>
 
-      <main className="workspace">
-        <div className="category-row">
+          <div className="settings-card">
+            <h3>Preferences</h3>
+            <div className="settings-form-row">
+              <label>Calendar Slot Size</label>
+              <select value={slotDuration} onChange={(e) => setSlotDuration(e.target.value)}>
+                <option value="00:15:00">15 minutes (4 slots/hour)</option>
+                <option value="00:30:00">30 minutes (2 slots/hour)</option>
+                <option value="01:00:00">60 minutes (1 slot/hour)</option>
+              </select>
+            </div>
+            <div className="settings-form-row">
+              <label>Agent Snapshot Days</label>
+              <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                <input
+                  type="number"
+                  value={snapshotDays}
+                  onChange={(e) => setSnapshotDays(parseInt(e.target.value) || 1)}
+                  onBlur={(e) => void updateSnapshotDays(parseInt(e.target.value) || 14)}
+                  min="1"
+                  max="365"
+                  style={{ flex: 1, minWidth: 0 }}
+                />
+                <button type="button" onClick={() => void updateSnapshotDays(snapshotDays)} className="sync-button">
+                  Save
+                </button>
+              </div>
+            </div>
+            <div className="settings-form-row">
+              <label>Working Hours</label>
+              <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                <input type="time" value={workingHoursStart} onChange={(e) => setWorkingHoursStart(e.target.value)} onBlur={(e) => void updateSettings({ workingHoursStart: e.target.value })} style={{ flex: 1 }} />
+                <span>to</span>
+                <input type="time" value={workingHoursEnd} onChange={(e) => setWorkingHoursEnd(e.target.value)} onBlur={(e) => void updateSettings({ workingHoursEnd: e.target.value })} style={{ flex: 1 }} />
+              </div>
+            </div>
+            <div className="settings-form-row">
+              <label>Working Days</label>
+              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", fontSize: "0.85rem" }}>
+                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day, i) => (
+                  <label key={i} style={{ display: "flex", alignItems: "center", gap: "0.2rem", fontWeight: "normal", cursor: "pointer" }}>
+                    <input type="checkbox" checked={workingDays.includes(i)} onChange={(e) => {
+                      const next = e.target.checked ? [...workingDays, i] : workingDays.filter(d => d !== i);
+                      setWorkingDays(next);
+                      void updateSettings({ workingDays: next });
+                    }} />
+                    {day}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="settings-card google-panel">
+            <h3>Google Calendar Sync</h3>
+            {!google.configured ? (
+              <p className="google-help">
+                Google OAuth is not configured. Add `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and
+                `GOOGLE_REDIRECT_URI` in your server environment.
+              </p>
+            ) : null}
+
+            {google.configured && !google.authenticated ? (
+              <a className="auth-link" href="/api/google/auth/start">
+                Sign in with Google
+              </a>
+            ) : null}
+
+            {google.configured && google.authenticated ? (
+              <div className="google-controls">
+                <div className="google-user-row">
+                  <div>
+                    Account:
+                    <br />
+                    <strong>{google.user?.email}</strong>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void signOutGoogle()}
+                    disabled={authWorking}
+                    className="ghost-btn"
+                    style={{ fontSize: "0.75rem", padding: "0.2rem 0.4rem" }}
+                  >
+                    {authWorking ? "..." : "Sign out"}
+                  </button>
+                </div>
+
+                <div className="calendar-buttons" style={{ flexDirection: "column", alignItems: "stretch" }}>
+                  {(google.calendars || []).map((calendar) => {
+                    const selected = google.selectedCalendarId === calendar.id;
+                    return (
+                      <button
+                        key={calendar.id}
+                        type="button"
+                        onClick={() => void selectGoogleCalendar(calendar.id)}
+                        className={`calendar-button ${selected ? "selected" : ""}`}
+                      >
+                        {calendar.summary}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="sync-row">
+                  <button
+                    type="button"
+                    onClick={() => void syncGoogleCalendar()}
+                    disabled={syncing || !google.selectedCalendarId}
+                    className="sync-button"
+                    style={{ width: "100%" }}
+                  >
+                    {syncing ? "Syncing..." : "Sync Now"}
+                  </button>
+                </div>
+                <div className="sync-hint" style={{ marginTop: "-0.5rem" }}>
+                  {selectedGoogleCalendar
+                    ? `Selected: ${selectedGoogleCalendar.summary}`
+                    : "Select a Google Calendar to start two-way sync"}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="app-shell-max">
+      {status && status !== "Synced with calendar.md" && status !== "Loading calendar..." && (
+        <div className="floating-status">{status}</div>
+      )}
+
+      <div className="calendar-wrapper-relative">
+        <div className="category-chips-overlay">
           {categories.map((category: CalendarCategory) => (
             <span key={category.id} className="category-chip" style={{ backgroundColor: category.color }}>
               {category.label}
             </span>
           ))}
         </div>
-        <section className="calendar-panel">
+
+        <section className="calendar-panel-max" onWheel={handleWheel}>
           <FullCalendar
+            ref={calendarRef}
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-            initialView="timeGridWeek"
+            initialView="slidingWeek"
+            views={{
+              slidingWeek: {
+                type: 'timeGrid',
+                duration: { days: 7 },
+                buttonText: 'sliding week',
+                dateIncrement: { days: 1 }
+              }
+            }}
+            customButtons={{
+              settingsBtn: {
+                text: "⚙️ Settings",
+                click: () => setView("settings")
+              },
+              statsBtn: {
+                text: "📊 Stats",
+                click: () => setView("stats")
+              }
+            }}
             headerToolbar={{
-              left: "prev,next today",
-              center: "title",
-              right: "dayGridMonth,timeGridWeek,timeGridDay"
+              left: "settingsBtn statsBtn today prev,next",
+              center: "",
+              right: "dayGridMonth,slidingWeek,timeGridDay"
             }}
             editable
             events={events}
@@ -483,8 +613,7 @@ function App() {
             height="100%"
           />
         </section>
-
-      </main>
+      </div>
     </div>
   );
 }

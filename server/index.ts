@@ -277,7 +277,7 @@ function googleEventToLocal(
     end,
     allDay: Boolean(googleEvent.start?.date),
     category,
-    color: googleEvent.colorId,
+    color: googleEvent.colorId ? GOOGLE_COLORS[googleEvent.colorId] : undefined,
     completed: privateFields.completed === "true" ? true : existing?.completed || false,
     location: googleEvent.location || undefined,
     notes: googleEvent.description || undefined,
@@ -285,14 +285,43 @@ function googleEventToLocal(
   });
 }
 
+const GOOGLE_COLORS: Record<string, string> = {
+  "1": "#7986cb", // Lavender
+  "2": "#33b679", // Sage
+  "3": "#8e24aa", // Grape
+  "4": "#e67c73", // Flamingo
+  "5": "#f6bf26", // Banana
+  "6": "#f4511e", // Tangerine
+  "7": "#039be5", // Peacock
+  "8": "#616161", // Graphite
+  "9": "#3f51b5", // Blueberry
+  "10": "#0b8043", // Basil
+  "11": "#d50000" // Tomato
+};
+
 function resolveColorToGoogleColorId(colorHex: string | undefined): string | undefined {
   if (!colorHex) return undefined;
   // Google Calendar API uses specific string IDs 1-11 for colors. 
   // We'll map our local hex values to the closest Google Color ID.
   const hex = colorHex.toLowerCase();
-  if (hex.includes("2f63ff")) return "9"; // Blueberry (Blue)
-  if (hex.includes("0ea5a4")) return "7"; // Peacock (Teal)
-  if (hex.includes("e11d48")) return "11"; // Tomato (Red)
+
+  for (const [id, color] of Object.entries(GOOGLE_COLORS)) {
+    if (hex.includes(color.replace('#', ''))) return id;
+    if (hex === color) return id;
+  }
+
+  // Custom fallback mappings for existing hexes
+  if (hex.includes("2563eb")) return "9"; // math -> Blueberry
+  if (hex.includes("7c3aed")) return "3"; // physics -> Grape 
+  if (hex.includes("16a34a")) return "10"; // chem -> Basil
+  if (hex.includes("f59e0b")) return "5"; // english -> Banana
+  if (hex.includes("f97316")) return "6"; // history -> Tangerine
+  if (hex.includes("0ea5a4")) return "7"; // multi -> Peacock
+  if (hex.includes("9333ea")) return "3"; // b2a -> Grape
+  if (hex.includes("e11d48")) return "11"; // life -> Tomato
+  if (hex.includes("9ca3af")) return "8"; // constants -> Graphite
+  if (hex.includes("2f63ff")) return "9"; // default old blue
+
   return undefined; // Fallback to default calendar color
 }
 

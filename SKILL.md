@@ -41,6 +41,10 @@ npm run cli -- <command>
    `npm run cli -- check --id <event_id>` or `--undone`
 4. Delete:
    `npm run cli -- delete --id <event_id>`
+5. Add category:
+   `npm run cli -- category-add --id <id> --label "Label" --color "#9ca3af" --description "..."`
+6. Remove category:
+   `npm run cli -- category-remove --id <id> --reassign <id>`
 
 Conflict handling:
 
