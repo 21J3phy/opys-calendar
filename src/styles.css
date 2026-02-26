@@ -310,7 +310,7 @@ body {
 }
 
 .ghost-btn {
-  background: #f2f2f7;
+  background: var(--fc-button-bg-color);
   color: #007aff;
 }
 
@@ -321,7 +321,7 @@ body {
 }
 
 .calendar-button {
-  background: #f2f2f7;
+  background: var(--fc-button-bg-color);
   color: var(--ink);
 }
 
