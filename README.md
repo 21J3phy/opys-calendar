@@ -1,6 +1,6 @@
 <div align="center">
   <h1>🤖 Opy's Calendar</h1>
-  <p><strong>A calendar built specifically for AI agents, and optimized for humans. Designed to work seamlessly with OpenClaw.</strong></p>
+  <p><strong>A calendar built specifically for AI agents, and optimized for humans. Designed to work seamlessly with OpenClaw and ClawHub.</strong></p>
 </div>
 
 ![Main Calendar View](./public/screenshots/main-view.png)
