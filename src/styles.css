@@ -118,6 +118,20 @@ body {
   display: flex;
   gap: 0.5rem;
   pointer-events: none;
+  flex-wrap: wrap;
+  justify-content: center;
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .category-chips-overlay {
+    position: relative;
+    top: auto;
+    left: auto;
+    transform: none;
+    padding: 0.5rem;
+    padding-bottom: 0;
+  }
 }
 
 .category-chips-overlay .category-chip {

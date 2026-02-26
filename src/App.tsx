@@ -222,6 +222,30 @@ function App() {
     });
   }, []);
 
+  // Poll for changes in calendar.md to automatically update the frontend
+  useEffect(() => {
+    const intervalId = setInterval(async () => {
+      try {
+        const res = await fetch("/api/calendar", { credentials: "include" });
+        if (res.ok) {
+          const newDoc: CalendarDocument = await res.json();
+          setDocument((prev) => {
+            if (!prev) return newDoc;
+            // Only update state if the file was modified, to prevent unnecessary re-renders
+            if (prev.frontmatter.updatedAt !== newDoc.frontmatter.updatedAt) {
+              return newDoc;
+            }
+            return prev;
+          });
+        }
+      } catch {
+        // Ignore polling errors to prevent spamming the UI
+      }
+    }, 5000);
+
+    return () => clearInterval(intervalId);
+  }, []);
+
   const selectedEvent = useMemo(
     () => document?.events.find((event) => event.id === selectedEventId) || null,
     [document, selectedEventId]
