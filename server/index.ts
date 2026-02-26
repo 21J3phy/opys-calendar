@@ -12,7 +12,7 @@ import {
   saveCalendarToFile,
   serializeCalendarMarkdown
 } from "../shared/calendarMarkdown";
-import type { CalendarDocument, CalendarEvent } from "../shared/types";
+import type { CalendarCategory, CalendarDocument, CalendarEvent } from "../shared/types";
 
 const app = express();
 const port = Number(process.env.PORT || 8787);
@@ -20,6 +20,7 @@ const root = process.cwd();
 const calendarPath = path.join(root, "calendar.md");
 const distPath = path.join(root, "dist");
 const syncStatePath = path.join(root, ".calendar-google-sync-state.json");
+const settingsPath = path.join(root, ".calendar-settings.json");
 const sessionCookieName = "calendar_sid";
 const oauthScope = ["openid", "email", "profile", "https://www.googleapis.com/auth/calendar"].join(" ");
 
@@ -66,6 +67,7 @@ type GoogleEvent = {
   description?: string;
   location?: string;
   updated?: string;
+  colorId?: string;
   start?: GoogleEventDateValue;
   end?: GoogleEventDateValue;
   extendedProperties?: {
@@ -98,6 +100,9 @@ class ApiError extends Error {
 
 const sessions = new Map<string, SessionData>();
 const sessionStorePath = path.join(root, ".calendar-sessions.json");
+
+const authTokens = new Map<string, { sid: string; expiresAt: number }>();
+const AUTH_TOKEN_TTL = 60_000;
 
 function loadSessionsFromDisk() {
   if (!fs.existsSync(sessionStorePath)) return;
@@ -272,6 +277,7 @@ function googleEventToLocal(
     end,
     allDay: Boolean(googleEvent.start?.date),
     category,
+    color: googleEvent.colorId,
     completed: privateFields.completed === "true" ? true : existing?.completed || false,
     location: googleEvent.location || undefined,
     notes: googleEvent.description || undefined,
@@ -279,7 +285,18 @@ function googleEventToLocal(
   });
 }
 
-function localEventToGooglePayload(event: CalendarEvent): Record<string, unknown> {
+function resolveColorToGoogleColorId(colorHex: string | undefined): string | undefined {
+  if (!colorHex) return undefined;
+  // Google Calendar API uses specific string IDs 1-11 for colors. 
+  // We'll map our local hex values to the closest Google Color ID.
+  const hex = colorHex.toLowerCase();
+  if (hex.includes("2f63ff")) return "9"; // Blueberry (Blue)
+  if (hex.includes("0ea5a4")) return "7"; // Peacock (Teal)
+  if (hex.includes("e11d48")) return "11"; // Tomato (Red)
+  return undefined; // Fallback to default calendar color
+}
+
+function localEventToGooglePayload(event: CalendarEvent, categories: CalendarCategory[]): Record<string, unknown> {
   const dates = toGoogleDatePayload(event);
   const privateFields: Record<string, string> = {
     externalId: event.externalId,
@@ -288,10 +305,15 @@ function localEventToGooglePayload(event: CalendarEvent): Record<string, unknown
     completed: String(event.completed)
   };
 
+  const categoryMatch = categories.find(c => c.id === event.category);
+  const eventColorHex = event.color || categoryMatch?.color;
+  const colorId = resolveColorToGoogleColorId(eventColorHex);
+
   const payload: Record<string, unknown> = {
     summary: event.title,
     description: event.notes,
     location: event.location,
+    colorId,
     start: dates.start,
     end: dates.end,
     extendedProperties: {
@@ -520,8 +542,8 @@ async function listGoogleEvents(session: SessionData, calendarId: string): Promi
   return events;
 }
 
-async function upsertGoogleEvent(session: SessionData, calendarId: string, event: CalendarEvent): Promise<GoogleEvent> {
-  const payload = localEventToGooglePayload(event);
+async function upsertGoogleEvent(session: SessionData, calendarId: string, event: CalendarEvent, categories: CalendarCategory[]): Promise<GoogleEvent> {
+  const payload = localEventToGooglePayload(event, categories);
   const mappedId = event.googleEventIds?.[calendarId];
 
   if (mappedId) {
@@ -638,7 +660,7 @@ async function syncGoogleCalendar(session: SessionData, calendarId: string): Pro
     }
 
     if (!remote) {
-      const created = await upsertGoogleEvent(session, calendarId, localEvent);
+      const created = await upsertGoogleEvent(session, calendarId, localEvent, document.frontmatter.categories);
       if (created.id) {
         const mappedIds = { ...(localEvent.googleEventIds || {}) };
         mappedIds[calendarId] = created.id;
@@ -681,7 +703,7 @@ async function syncGoogleCalendar(session: SessionData, calendarId: string): Pro
           headers: {
             "Content-Type": "application/json"
           },
-          body: JSON.stringify(localEventToGooglePayload({ ...localEvent, googleEventIds: mappedIds }))
+          body: JSON.stringify(localEventToGooglePayload({ ...localEvent, googleEventIds: mappedIds }, document.frontmatter.categories))
         }
       );
 
@@ -835,6 +857,33 @@ app.get("/api/health", (_req, res) => {
   res.json({ ok: true });
 });
 
+app.get("/api/settings", async (_req, res) => {
+  try {
+    const raw = await fsp.readFile(settingsPath, "utf8");
+    res.json(JSON.parse(raw));
+  } catch {
+    res.json({});
+  }
+});
+
+app.post("/api/settings", async (req, res) => {
+  try {
+    let current = {};
+    try {
+      const raw = await fsp.readFile(settingsPath, "utf8");
+      current = JSON.parse(raw);
+    } catch {
+      // ignore
+    }
+    const next = { ...current, ...req.body };
+    await fsp.writeFile(settingsPath, JSON.stringify(next, null, 2), "utf8");
+    res.json(next);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: message });
+  }
+});
+
 app.get("/api/calendar", async (_req, res) => {
   const document = await loadCalendarFromFile(calendarPath);
   res.json(document);
@@ -950,28 +999,28 @@ app.get("/api/google/auth/status", async (req, res) => {
 
   try {
     requireGoogleSession(req.sessionData);
-    const calendars = await listGoogleCalendars(req.sessionData);
-
-    const selectedCalendarId = req.sessionData.selectedCalendarId;
-    const hasSelected = selectedCalendarId ? calendars.some((item) => item.id === selectedCalendarId) : false;
-    if (selectedCalendarId && !hasSelected) {
-      req.sessionData.selectedCalendarId = undefined;
-    }
-
+  } catch {
     res.json({
       configured: true,
-      authenticated: true,
-      user: req.sessionData.user,
-      calendars,
-      selectedCalendarId: req.sessionData.selectedCalendarId
+      authenticated: false
     });
-  } catch (error) {
-    req.sessionData.tokens = undefined;
-    req.sessionData.user = undefined;
-    req.sessionData.selectedCalendarId = undefined;
+    return;
+  }
 
-    if (error instanceof ApiError) {
-      res.status(error.status === 401 ? 200 : error.status).json({
+  let calendars: GoogleCalendarSummary[] = [];
+  let calendarError: string | undefined;
+
+  try {
+    calendars = await listGoogleCalendars(req.sessionData);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      const session = req.sessionData as SessionData;
+      session.tokens = undefined;
+      session.user = undefined;
+      session.selectedCalendarId = undefined;
+      persistSessionsToDisk();
+
+      res.json({
         configured: true,
         authenticated: false,
         error: error.message
@@ -979,8 +1028,23 @@ app.get("/api/google/auth/status", async (req, res) => {
       return;
     }
 
-    res.status(500).json({ configured: true, authenticated: false, error: "Could not verify Google session" });
+    calendarError = error instanceof Error ? error.message : "Could not load Google calendars";
   }
+
+  const selectedCalendarId = req.sessionData.selectedCalendarId;
+  const hasSelected = selectedCalendarId ? calendars.some((item) => item.id === selectedCalendarId) : false;
+  if (selectedCalendarId && !hasSelected) {
+    req.sessionData.selectedCalendarId = undefined;
+  }
+
+  res.json({
+    configured: true,
+    authenticated: true,
+    user: req.sessionData.user,
+    calendars,
+    selectedCalendarId: req.sessionData.selectedCalendarId,
+    error: calendarError
+  });
 });
 
 app.get("/api/google/auth/start", (req, res) => {
@@ -992,6 +1056,7 @@ app.get("/api/google/auth/start", (req, res) => {
   const stateNonce = `state_${nanoid(18)}`;
   const state = `${req.sessionId}:${stateNonce}`;
   req.sessionData.oauthState = stateNonce;
+  persistSessionsToDisk();
   const config = getGoogleConfig();
 
   const params = new URLSearchParams({
@@ -1021,8 +1086,15 @@ app.get("/api/google/auth/callback", async (req, res) => {
   }
 
   const [stateSid, stateNonce] = state.split(":");
+
   if (stateSid && (!req.sessionId || req.sessionId !== stateSid)) {
-    const restored = sessions.get(stateSid);
+    let restored = sessions.get(stateSid);
+
+    if (!restored) {
+      loadSessionsFromDisk();
+      restored = sessions.get(stateSid);
+    }
+
     if (restored) {
       req.sessionId = stateSid;
       req.sessionData = restored;
@@ -1073,7 +1145,9 @@ app.get("/api/google/auth/callback", async (req, res) => {
     req.sessionData.selectedCalendarId = undefined;
     persistSessionsToDisk();
 
-    res.redirect(`${redirectBase}?google_auth=success`);
+    const authToken = `atok_${nanoid(24)}`;
+    authTokens.set(authToken, { sid: req.sessionId, expiresAt: Date.now() + AUTH_TOKEN_TTL });
+    res.redirect(`${redirectBase}?google_auth=success&auth_token=${encodeURIComponent(authToken)}`);
   } catch (callbackError) {
     const reason = callbackError instanceof Error ? callbackError.message : "oauth_callback_failed";
     req.sessionData.tokens = undefined;
@@ -1082,6 +1156,40 @@ app.get("/api/google/auth/callback", async (req, res) => {
     persistSessionsToDisk();
     res.redirect(`${redirectBase}?google_auth=error&reason=${encodeURIComponent(reason)}`);
   }
+});
+
+app.post("/api/google/auth/adopt", (req, res) => {
+  const token = typeof req.body?.token === "string" ? req.body.token.trim() : "";
+  if (!token) {
+    res.status(400).json({ error: "token is required" });
+    return;
+  }
+
+  const entry = authTokens.get(token);
+  authTokens.delete(token);
+
+  if (!entry || entry.expiresAt < Date.now()) {
+    res.status(400).json({ error: "Invalid or expired auth token" });
+    return;
+  }
+
+  const session = sessions.get(entry.sid);
+  if (!session) {
+    res.status(400).json({ error: "Session not found" });
+    return;
+  }
+
+  req.sessionId = entry.sid;
+  req.sessionData = session;
+
+  res.cookie(sessionCookieName, entry.sid, {
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: 1000 * 60 * 60 * 24 * 30,
+    path: "/"
+  });
+
+  res.json({ ok: true });
 });
 
 app.post("/api/google/auth/logout", (req, res) => {

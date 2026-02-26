@@ -17,6 +17,7 @@ export interface CalendarEvent {
   completed: boolean;
   notes?: string;
   location?: string;
+  color?: string;
   googleEventIds?: Record<string, string>;
 }
 

@@ -1,14 +1,23 @@
-@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap");
-
 :root {
   color-scheme: light;
-  font-family: "Space Grotesk", "Avenir Next", sans-serif;
-  --bg: #f4f7ec;
-  --surface: #fcfff6;
-  --ink: #18221f;
-  --muted: #50605b;
-  --line: #d5dfd5;
-  --accent: #125f4d;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  --bg: #f5f5f7;
+  --surface: #ffffff;
+  --ink: #1d1d1f;
+  --muted: #86868b;
+  --line: #e5e5ea;
+  --accent: #ff3b30;
+
+  /* FullCalendar standard variables customized for Apple appearance */
+  --fc-border-color: var(--line);
+  --fc-today-bg-color: #f5f5f7;
+  --fc-button-bg-color: #f2f2f7;
+  --fc-button-border-color: #e5e5ea;
+  --fc-button-text-color: #1d1d1f;
+  --fc-button-hover-bg-color: #e5e5ea;
+  --fc-button-hover-border-color: #d1d1d6;
+  --fc-button-active-bg-color: #d1d1d6;
+  --fc-button-active-border-color: #c7c7cc;
 }
 
 * {
@@ -17,22 +26,23 @@
 
 body {
   margin: 0;
-  min-height: 100vh;
+  height: 100vh;
   color: var(--ink);
-  background:
-    radial-gradient(circle at 15% 15%, #dff8da 0, transparent 36%),
-    radial-gradient(circle at 80% 0%, #c8f0eb 0, transparent 34%),
-    linear-gradient(130deg, #f5f7ec 0%, #e9f4f8 50%, #edf8ef 100%);
+  background: var(--bg);
+  overflow: hidden;
+  /* Let the calendar inner container scroll */
 }
 
 #root {
-  min-height: 100vh;
+  height: 100vh;
 }
 
 .app-shell {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 1.2rem;
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 0.8rem 1rem;
 }
 
 .app-header {
@@ -40,141 +50,173 @@ body {
   justify-content: space-between;
   gap: 1rem;
   align-items: center;
-  margin-bottom: 1rem;
+  margin-bottom: 0.8rem;
+  flex-shrink: 0;
 }
 
 .app-header h1 {
   margin: 0;
-  font-size: clamp(1.5rem, 3vw, 2.4rem);
-  letter-spacing: -0.03em;
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .app-header p {
-  margin: 0.35rem 0 0;
-  color: var(--muted);
+  display: none;
+  /* Hide description for a cleaner Apple-like view */
 }
 
 .status-pill {
-  align-self: flex-start;
-  background: #f2ffe6;
-  border: 1px solid #b9d89a;
-  color: #28531f;
-  border-radius: 999px;
-  padding: 0.4rem 0.8rem;
-  font-size: 0.84rem;
-  max-width: 340px;
+  align-self: center;
+  color: var(--muted);
+  font-size: 0.85rem;
 }
 
 .google-panel {
-  background: color-mix(in srgb, var(--surface) 88%, white 12%);
-  border: 1px solid color-mix(in srgb, var(--line) 85%, white 15%);
-  border-radius: 16px;
-  box-shadow: 0 10px 35px rgba(16, 28, 19, 0.09);
-  padding: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.6rem 1rem;
   margin-bottom: 1rem;
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
 }
 
 .google-help {
   margin: 0;
-  color: #7a2f2f;
+  color: #ff3b30;
   font-weight: 500;
+  font-size: 0.9rem;
 }
 
 .auth-link {
   display: inline-block;
   text-decoration: none;
-  border: 0;
-  border-radius: 10px;
-  padding: 0.52rem 0.72rem;
-  background: var(--accent);
+  border-radius: 8px;
+  padding: 0.4rem 0.8rem;
+  background: #007aff;
   color: white;
-  font-weight: 600;
+  font-weight: 500;
+  font-size: 0.9rem;
 }
 
 .google-controls {
-  display: grid;
-  gap: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  font-size: 0.9rem;
 }
 
 .google-user-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   gap: 0.75rem;
 }
 
 .ghost-btn,
 .sync-button,
-.calendar-button,
-.danger-btn {
+.calendar-button {
   font: inherit;
   border: 0;
-  border-radius: 10px;
-  padding: 0.52rem 0.72rem;
+  border-radius: 6px;
+  padding: 0.35rem 0.65rem;
   cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
 }
 
 .ghost-btn {
-  background: #dde9e3;
-  color: #29443d;
+  background: #f2f2f7;
+  color: #007aff;
 }
 
 .calendar-buttons {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 0.4rem;
 }
 
 .calendar-button {
-  background: #e8f0eb;
-  color: #1e3631;
+  background: #f2f2f7;
+  color: var(--ink);
 }
 
 .calendar-button.selected {
-  background: #284f45;
+  background: #007aff;
   color: white;
 }
 
 .sync-row {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 0.7rem;
+  gap: 0.6rem;
 }
 
 .sync-button {
-  background: var(--accent);
+  background: #007aff;
   color: white;
 }
 
 .sync-button:disabled,
-.ghost-btn:disabled,
-.danger-btn:disabled {
-  opacity: 0.6;
+.ghost-btn:disabled {
+  opacity: 0.5;
   cursor: default;
 }
 
 .sync-hint {
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
 }
 
+/* Inline Settings */
+.settings-panel-inline {
+  background: var(--surface);
+  border-radius: 8px;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--line);
+  margin-top: 0.2rem;
+  flex-basis: 100%;
+}
+
+.settings-panel-inline summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--muted);
+  font-size: 0.85rem;
+  user-select: none;
+}
+
+.settings-content {
+  margin-top: 0.8rem;
+  display: flex;
+  gap: 2rem;
+  align-items: flex-end;
+  font-size: 0.85rem;
+}
+
+.settings-content label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 0.4rem;
+  color: var(--ink);
+}
+
+.settings-content select,
+.settings-content input {
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  font-family: inherit;
+  font-size: 0.85rem;
+}
+
+/* Workspace wrapper */
 .workspace {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 1rem;
-}
-
-.calendar-panel,
-.editor-panel {
-  background: color-mix(in srgb, var(--surface) 88%, white 12%);
-  border: 1px solid color-mix(in srgb, var(--line) 85%, white 15%);
-  border-radius: 16px;
-  box-shadow: 0 10px 35px rgba(16, 28, 19, 0.09);
-}
-
-.calendar-panel {
-  padding: 1rem;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .category-row {
@@ -182,148 +224,139 @@ body {
   flex-wrap: wrap;
   gap: 0.5rem;
   margin-bottom: 0.8rem;
+  padding: 0 0.2rem;
 }
 
 .category-chip {
   color: white;
-  font-size: 0.76rem;
-  font-weight: 700;
-  border-radius: 999px;
-  padding: 0.24rem 0.7rem;
-  letter-spacing: 0.02em;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 0.25rem 0.6rem;
+  text-transform: capitalize;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
-.editor-panel {
-  padding: 1rem;
-  height: fit-content;
+/* The actual calendar panel */
+.calendar-panel {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+  padding: 0;
+  overflow: hidden;
+  /* Ensure border-radius clips children cleanly */
+  display: flex;
+  flex-direction: column;
 }
 
-.editor-panel h2 {
-  margin-top: 0;
-}
-
-.event-details {
-  display: grid;
-  gap: 0.5rem;
-  color: var(--muted);
-}
-
-.event-details p {
-  margin: 0;
-}
-
-.event-details-title {
-  color: var(--ink);
-  font-weight: 700;
-}
-
-.details-actions {
-  margin-top: 0.4rem;
-}
-
-.danger-btn {
-  background: #b23553;
-  color: white;
-}
-
-.event-details code {
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 0.82rem;
-  display: inline-block;
-  margin-top: 0.35rem;
-  background: #eef4f1;
-  border-radius: 8px;
-  padding: 0.3rem 0.45rem;
-}
-
+/* Apple Calendar style overrides for FullCalendar */
 .fc {
-  font-size: 0.93rem;
+  font-family: inherit;
+  font-size: 0.85rem;
+  flex: 1;
+}
+
+.fc .fc-toolbar.fc-header-toolbar {
+  padding: 0.8rem 1rem;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--line);
+  background: #fdfdfd;
 }
 
 .fc .fc-toolbar-title {
-  font-size: 1.1rem;
+  font-size: 1.25rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
 }
 
-.fc .fc-button-primary {
-  border: 0;
-  background: #26484a;
+.fc .fc-button {
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-transform: capitalize;
+  border-radius: 6px;
+  padding: 0.35rem 0.65rem;
+  box-shadow: none !important;
 }
 
-.fc .fc-button-primary:not(:disabled):hover {
-  background: #1e3a3c;
+.fc .fc-button-primary:not(:disabled).fc-button-active,
+.fc .fc-button-primary:not(:disabled):active {
+  background-color: var(--fc-button-active-bg-color);
+  border-color: var(--fc-button-active-border-color);
+  color: var(--ink);
 }
 
-.fc .fc-event {
-  border: none;
-  border-radius: 8px;
-  padding: 0.1rem;
-}
-
-.event-card {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  min-width: 0;
-}
-
-.event-check {
-  width: 1rem;
-  height: 1rem;
-  border: 1px solid white;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 0.7rem;
-  line-height: 1;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.event-check.is-complete {
-  background: rgba(0, 0, 0, 0.22);
-}
-
-.event-copy {
-  min-width: 0;
-}
-
-.event-title {
-  font-weight: 600;
-  line-height: 1.1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.event-title.done {
-  text-decoration: line-through;
-  opacity: 0.8;
-}
-
-.event-category {
-  font-size: 0.68rem;
+.fc-theme-standard th {
+  border-top: none;
+  border-bottom: 1px solid var(--line);
+  padding: 0.3rem 0;
+  color: var(--muted);
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  opacity: 0.85;
+  font-size: 0.75rem;
+  background: #fdfdfd;
 }
 
-@media (max-width: 1050px) {
-  .workspace {
-    grid-template-columns: 1fr;
-  }
+/* Table overrides to look lighter */
+.fc-theme-standard td,
+.fc-theme-standard th {
+  border-color: var(--line) !important;
+}
 
+.fc-scrollgrid {
+  border: none !important;
+}
+
+/* Events */
+.fc .fc-event {
+  border-radius: 4px;
+  padding: 0 4px;
+  font-size: 0.75rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  font-weight: 500;
+  opacity: 0.95;
+}
+
+.fc-timegrid-event {
+  border-radius: 6px;
+  margin: 1px;
+  overflow: hidden;
+}
+
+.fc-timegrid-event-harness>.fc-timegrid-event {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) !important;
+}
+
+.fc-event-main {
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.fc-timegrid-slot {
+  height: 2.2em;
+  /* Taller slots for Apple feel */
+}
+
+/* Hide event borders since box-shadow replaces them */
+.fc-h-event,
+.fc-v-event {
+  border-color: transparent !important;
+}
+
+/* Responsiveness */
+@media (max-width: 1050px) {
   .app-header {
-    flex-direction: column;
-    align-items: flex-start;
+    flex-wrap: wrap;
   }
 
   .status-pill {
     max-width: 100%;
   }
 
-  .google-user-row {
+  .google-controls {
     flex-direction: column;
     align-items: flex-start;
+    gap: 0.8rem;
   }
 }

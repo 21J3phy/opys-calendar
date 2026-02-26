@@ -138,6 +138,7 @@ function normalizeEvent(raw: unknown): CalendarEvent | null {
     completed: Boolean(e.completed),
     notes: typeof e.notes === "string" ? e.notes : undefined,
     location: typeof e.location === "string" ? e.location : undefined,
+    color: typeof e.color === "string" ? e.color : undefined,
     googleEventIds: normalizeGoogleEventIds(e.googleEventIds)
   });
 }
@@ -193,6 +194,9 @@ export function serializeCalendarMarkdown(document: CalendarDocument): string {
       }
       if (event.notes) {
         payload.notes = event.notes;
+      }
+      if (event.color) {
+        payload.color = event.color;
       }
 
       const yaml = YAML.stringify(payload).trim();

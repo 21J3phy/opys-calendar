@@ -70,6 +70,43 @@ function App() {
   const [google, setGoogle] = useState<GoogleAuthStatus>({ configured: false, authenticated: false });
   const [syncing, setSyncing] = useState(false);
   const [authWorking, setAuthWorking] = useState(false);
+  const [slotDuration, setSlotDuration] = useState<string>(() => localStorage.getItem("slotDuration") || "00:15:00");
+  const [snapshotDays, setSnapshotDays] = useState<number>(14);
+
+  useEffect(() => {
+    localStorage.setItem("slotDuration", slotDuration);
+  }, [slotDuration]);
+
+  useEffect(() => {
+    async function loadSettings() {
+      try {
+        const res = await fetch("/api/settings");
+        if (res.ok) {
+          const data = await res.json();
+          if (typeof data.snapshotDays === "number") {
+            setSnapshotDays(data.snapshotDays);
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+    void loadSettings();
+  }, []);
+
+  async function updateSnapshotDays(days: number) {
+    setSnapshotDays(days);
+    try {
+      await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ snapshotDays: days })
+      });
+      setStatus(`Snapshot days updated to ${days}`);
+    } catch {
+      setStatus("Failed to update snapshot days");
+    }
+  }
 
   const categories = document?.frontmatter.categories || [];
 
@@ -87,31 +124,45 @@ function App() {
   }
 
   useEffect(() => {
-    Promise.all([refreshCalendar(), refreshGoogle()])
-      .then(() => {
-        const params = new URLSearchParams(window.location.search);
-        const googleAuth = params.get("google_auth");
-        const reason = params.get("reason");
+    const params = new URLSearchParams(window.location.search);
+    const googleAuth = params.get("google_auth");
+    const authToken = params.get("auth_token");
+    const reason = params.get("reason");
 
-        if (googleAuth === "success") {
-          setStatus("Google account connected. Choose a calendar and sync.");
-          void refreshGoogle();
-          window.history.replaceState({}, "", window.location.pathname);
-        }
+    async function init() {
+      await refreshCalendar();
 
-        if (googleAuth === "error") {
-          setStatus(`Google auth failed${reason ? `: ${reason}` : ""}`);
-          void refreshGoogle();
-          window.history.replaceState({}, "", window.location.pathname);
+      if (googleAuth === "success" && authToken) {
+        try {
+          await fetch("/api/google/auth/adopt", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ token: authToken })
+          });
+        } catch {
+          // token exchange failed, will fall through to refreshGoogle
         }
+        window.history.replaceState({}, "", window.location.pathname);
+        await refreshGoogle();
+        setStatus("Google account connected. Choose a calendar and sync.");
+        return;
+      }
 
-        if (googleAuth !== "success" && googleAuth !== "error") {
-          setStatus("Synced with calendar.md");
-        }
-      })
-      .catch((error) => {
-        setStatus(error instanceof Error ? error.message : "Load failed");
-      });
+      if (googleAuth === "error") {
+        window.history.replaceState({}, "", window.location.pathname);
+        await refreshGoogle();
+        setStatus(`Google auth failed${reason ? `: ${reason}` : ""}`);
+        return;
+      }
+
+      await refreshGoogle();
+      setStatus("Synced with calendar.md");
+    }
+
+    init().catch((error) => {
+      setStatus(error instanceof Error ? error.message : "Load failed");
+    });
   }, []);
 
   const selectedEvent = useMemo(
@@ -124,7 +175,26 @@ function App() {
 
     return document.events.map((event) => {
       const category = categories.find((item) => item.id === event.category);
-      const color = category?.color || "#64748b";
+      // Determine the hex color. If it's a google colorId (1-11), map it back to a visually pleasing color, else use it directly, else fallback to category
+      let eventColor = event.color || category?.color || "#64748b";
+
+      // Color ID mapping Google uses:
+      const googleColorMap: Record<string, string> = {
+        "1": "#7986cb", // Lavender
+        "2": "#33b679", // Sage
+        "3": "#8e24aa", // Grape
+        "4": "#e67c73", // Flamingo
+        "5": "#f6bf26", // Banana
+        "6": "#f4511e", // Tangerine
+        "7": "#039be5", // Peacock
+        "8": "#616161", // Graphite
+        "9": "#3f51b5", // Blueberry
+        "10": "#0b8043", // Basil
+        "11": "#d50000", // Tomato
+      };
+      if (event.color && googleColorMap[event.color]) {
+        eventColor = googleColorMap[event.color];
+      }
 
       return {
         id: event.id,
@@ -132,8 +202,8 @@ function App() {
         start: event.start,
         end: event.end,
         allDay: event.allDay,
-        backgroundColor: color,
-        borderColor: color,
+        backgroundColor: eventColor,
+        borderColor: eventColor,
         extendedProps: {
           completed: event.completed,
           category: event.category
@@ -200,6 +270,17 @@ function App() {
     await refreshCalendar("Event removed");
   }
 
+  // Key down event to delete selected event with backspace/delete
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.key === "Backspace" || e.key === "Delete") && selectedEventId) {
+        void deleteSelected();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedEventId]);
+
   async function selectGoogleCalendar(calendarId: string) {
     try {
       const response = await fetch("/api/google/calendars/select", {
@@ -263,31 +344,7 @@ function App() {
     }
   }
 
-  function renderEventContent(arg: EventContentArg) {
-    const completed = Boolean(arg.event.extendedProps.completed);
-    const category = String(arg.event.extendedProps.category || "life");
 
-    return (
-      <div className="event-card">
-        <button
-          className={`event-check ${completed ? "is-complete" : ""}`}
-          onClick={(clickEvent) => {
-            clickEvent.preventDefault();
-            clickEvent.stopPropagation();
-            void toggleCompleted(arg.event.id, !completed);
-          }}
-          title={completed ? "Mark incomplete" : "Mark complete"}
-          aria-label={completed ? "Mark incomplete" : "Mark complete"}
-        >
-          {completed ? "x" : ""}
-        </button>
-        <div className="event-copy">
-          <div className={`event-title ${completed ? "done" : ""}`}>{arg.event.title}</div>
-          <div className="event-category">{category}</div>
-        </div>
-      </div>
-    );
-  }
 
   const selectedGoogleCalendar = google.calendars?.find((item) => item.id === google.selectedCalendarId);
 
@@ -358,20 +415,56 @@ function App() {
                   : "Select a Google Calendar to start two-way sync"}
               </span>
             </div>
+
+            <details className="settings-panel-inline">
+              <summary>Settings</summary>
+              <div className="settings-content">
+                <div>
+                  <label>Calendar Slot Size</label>
+                  <select
+                    value={slotDuration}
+                    onChange={(e) => setSlotDuration(e.target.value)}
+                  >
+                    <option value="00:15:00">15 minutes (4 slots/hour)</option>
+                    <option value="00:30:00">30 minutes (2 slots/hour)</option>
+                    <option value="01:00:00">60 minutes (1 slot/hour)</option>
+                  </select>
+                </div>
+                <div>
+                  <label>Agent Snapshot Days</label>
+                  <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                    <input
+                      type="number"
+                      value={snapshotDays}
+                      onChange={(e) => setSnapshotDays(parseInt(e.target.value) || 1)}
+                      onBlur={(e) => void updateSnapshotDays(parseInt(e.target.value) || 14)}
+                      min="1"
+                      max="365"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void updateSnapshotDays(snapshotDays)}
+                      className="sync-button"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </details>
           </div>
         ) : null}
       </section>
 
       <main className="workspace">
+        <div className="category-row">
+          {categories.map((category: CalendarCategory) => (
+            <span key={category.id} className="category-chip" style={{ backgroundColor: category.color }}>
+              {category.label}
+            </span>
+          ))}
+        </div>
         <section className="calendar-panel">
-          <div className="category-row">
-            {categories.map((category: CalendarCategory) => (
-              <span key={category.id} className="category-chip" style={{ backgroundColor: category.color }}>
-                {category.label}
-              </span>
-            ))}
-          </div>
-
           <FullCalendar
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
             initialView="timeGridWeek"
@@ -385,40 +478,12 @@ function App() {
             eventDrop={handleDragOrResize}
             eventResize={handleDragOrResize}
             eventClick={(arg) => setSelectedEventId(arg.event.id)}
-            eventContent={renderEventContent}
             nowIndicator
-            height="auto"
+            slotDuration={slotDuration}
+            height="100%"
           />
         </section>
 
-        <aside className="editor-panel">
-          <h2>Event Details</h2>
-
-          {selectedEvent ? (
-            <div className="event-details">
-              <p className="event-details-title">{selectedEvent.title}</p>
-              <p>{formatDateRange(selectedEvent)}</p>
-              <p>Category: {selectedEvent.category}</p>
-              <p>Completed: {selectedEvent.completed ? "Yes" : "No"}</p>
-              {selectedEvent.location ? <p>Location: {selectedEvent.location}</p> : null}
-              {selectedEvent.notes ? <p>Notes: {selectedEvent.notes}</p> : null}
-              <div className="details-actions">
-                <button type="button" onClick={() => void deleteSelected()} className="danger-btn">
-                  Delete Event
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="event-details">
-              <p>Select any event to inspect details.</p>
-              <p>
-                To add events, use CLI from repo root:
-                <br />
-                <code>npm run cli -- add --title "..." --start "..." --end "..." --category life</code>
-              </p>
-            </div>
-          )}
-        </aside>
       </main>
     </div>
   );

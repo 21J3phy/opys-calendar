@@ -274,7 +274,19 @@ function collectWindowEvents(document: CalendarDocument, fromMs: number, toMs: n
 
 async function writeRecentSnapshot(document: CalendarDocument, overridePath?: string): Promise<string> {
   const snapshotPath = overridePath || process.env.CALENDAR_AGENT_SNAPSHOT?.trim() || defaultSnapshotPath;
-  const recentDays = parsePositiveInt(process.env.CALENDAR_AGENT_DAYS, 14);
+  const settingsPath = path.join(process.cwd(), ".calendar-settings.json");
+  let snapshotDays = parsePositiveInt(process.env.CALENDAR_AGENT_DAYS, 14);
+  try {
+    const raw = await fs.readFile(settingsPath, "utf8");
+    const settings = JSON.parse(raw);
+    if (typeof settings.snapshotDays === "number" && settings.snapshotDays > 0) {
+      snapshotDays = settings.snapshotDays;
+    }
+  } catch {
+    // ignore
+  }
+
+  const recentDays = snapshotDays;
   const nowMs = Date.now();
   const dayMs = 24 * 60 * 60 * 1000;
   const recentFromMs = nowMs - recentDays * dayMs;
