@@ -16,7 +16,7 @@ import type { CalendarDocument, CalendarEvent } from "../shared/types";
 
 const program = new Command();
 const calendarPath = path.join(process.cwd(), "calendar.md");
-const defaultSnapshotPath = "/Users/nrav/.openclaw/workspace/recent-calendar.md";
+const defaultSnapshotPath = path.join(process.cwd(), "agent-snapshot.md");
 const upcomingWindowDays = 7;
 
 interface TimeRange {

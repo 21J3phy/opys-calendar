@@ -57,7 +57,7 @@ Conflict handling:
 Agent snapshot output:
 
 - Every mutating CLI command writes a rolling markdown snapshot.
-- Default path: `/Users/nrav/.openclaw/workspace/recent-calendar.md`
+- Default path: `./agent-snapshot.md`
 - Override with `CALENDAR_AGENT_SNAPSHOT`.
 - Recent window defaults to 14 days and is configurable with `CALENDAR_AGENT_DAYS`.
 - Snapshot also includes upcoming 7 days when events exist.
@@ -88,3 +88,18 @@ Sync state file:
 - Keep datetimes in ISO format.
 - Prefer CLI operations over manual markdown edits.
 - If categories are changed manually in frontmatter, keep `id`, `label`, and `color` fields valid.
+
+## Environment Variables
+
+This skill uses the following environment variables (defined in `.env`):
+
+- **Google Calendar Sync (Optional)**
+  - `GOOGLE_CLIENT_ID`: Google OAuth Client ID
+  - `GOOGLE_CLIENT_SECRET`: Google OAuth Client Secret
+  - `GOOGLE_REDIRECT_URI`: Should be `http://localhost:<PORT>/api/google/auth/callback`
+
+- **Agent Configuration (Optional)**
+  - `CALENDAR_AGENT_SNAPSHOT`: Custom absolute or relative path to write the Markdown snapshot. Defaults to `./agent-snapshot.md`.
+  - `CALENDAR_AGENT_DAYS`: Number of historical days to include in the snapshot (defaults to 14).
+  - `PORT`: API server port (defaults to 8787).
+  - `APP_BASE_URL`: Base URL for the frontend UI.

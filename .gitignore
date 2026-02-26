@@ -4,4 +4,4 @@ dist
 *.log
 
 .env
-.calendar-sessions.json
+.calendar-*.json
