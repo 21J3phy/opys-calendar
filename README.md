@@ -72,3 +72,5 @@ npm run cli summary
 # Add an event via shell
 npm run cli add --title "Meeting with Bob" --start "2026-03-10T14:00:00" --end "2026-03-10T15:00:00" --category "work"
 ```
+**Clawhub link**
+https://clawhub.ai/21J3phy/opys-calendar
