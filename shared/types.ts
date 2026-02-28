@@ -33,3 +33,13 @@ export interface CalendarDocument {
   frontmatter: CalendarFrontmatter;
   events: CalendarEvent[];
 }
+
+export interface SendTodoToAgentRequest {
+  todoItems: string[];
+}
+
+export interface SendTodoToAgentResponse {
+  ok: true;
+  queued: number;
+  message: string;
+}

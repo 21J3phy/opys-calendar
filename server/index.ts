@@ -1,7 +1,9 @@
 import "dotenv/config";
+import { execFile } from "node:child_process";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
+import { promisify } from "node:util";
 import express from "express";
 import cors from "cors";
 import { nanoid } from "nanoid";
@@ -12,10 +14,18 @@ import {
   saveCalendarToFile,
   serializeCalendarMarkdown
 } from "../shared/calendarMarkdown";
-import type { CalendarCategory, CalendarDocument, CalendarEvent } from "../shared/types";
+import type {
+  CalendarCategory,
+  CalendarDocument,
+  CalendarEvent,
+  SendTodoToAgentRequest,
+  SendTodoToAgentResponse
+} from "../shared/types";
 
 const app = express();
 const port = Number(process.env.PORT || 8787);
+const execFileAsync = promisify(execFile);
+const OPENCLAW_SEND_TIMEOUT_MS = 20_000;
 const root = process.cwd();
 const calendarPath = path.join(root, "calendar.md");
 const distPath = path.join(root, "dist");
@@ -162,6 +172,27 @@ function cookieMap(raw: string | undefined): Record<string, string> {
     acc[name] = decodeURIComponent(rest.join("="));
     return acc;
   }, {});
+}
+
+function normalizeTodoItems(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter((item) => item.length > 0);
+}
+
+async function sendTodosToOpy(todoItems: string[]): Promise<void> {
+  const numbered = todoItems.map((item, index) => `${index + 1}. ${item}`).join("\n");
+  const text = `Please add these to-do items to my calendar:\n${numbered}`;
+
+  await execFileAsync(
+    "openclaw",
+    ["system", "event", "--text", text, "--mode", "now"],
+    { timeout: OPENCLAW_SEND_TIMEOUT_MS, maxBuffer: 1024 * 1024 }
+  );
 }
 
 function getGoogleConfig() {
@@ -884,6 +915,29 @@ app.use((req, res, next) => {
 
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true });
+});
+
+app.post("/api/agent/todos", async (req, res) => {
+  const body = req.body as Partial<SendTodoToAgentRequest> | undefined;
+  const todoItems = normalizeTodoItems(body?.todoItems);
+
+  if (todoItems.length === 0) {
+    res.status(400).json({ error: "todoItems must include at least one non-empty item" });
+    return;
+  }
+
+  try {
+    await sendTodosToOpy(todoItems);
+    const response: SendTodoToAgentResponse = {
+      ok: true,
+      queued: todoItems.length,
+      message: `Sent ${todoItems.length} to-do item(s) to Opy`
+    };
+    res.json(response);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    res.status(502).json({ error: `Failed to send to Opy agent: ${message}` });
+  }
 });
 
 app.get("/api/settings", async (_req, res) => {

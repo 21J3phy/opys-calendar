@@ -4,7 +4,13 @@ import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import type { EventContentArg, EventInput } from "@fullcalendar/core";
-import type { CalendarCategory, CalendarDocument, CalendarEvent } from "../shared/types";
+import type {
+  CalendarCategory,
+  CalendarDocument,
+  CalendarEvent,
+  SendTodoToAgentRequest,
+  SendTodoToAgentResponse
+} from "../shared/types";
 
 type GoogleCalendarSummary = {
   id: string;
@@ -63,6 +69,14 @@ function formatDateRange(event: CalendarEvent): string {
   return `${start} -> ${end}`;
 }
 
+function parseTodoItems(text: string): string[] {
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .map((line) => line.replace(/^[-*•]\s+/, "").replace(/^\d+[.)]\s+/, "").trim())
+    .filter((line) => line.length > 0);
+}
+
 import StatsView from "./StatsView";
 
 function App() {
@@ -79,6 +93,10 @@ function App() {
   const [workingDays, setWorkingDays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [darkMode, setDarkMode] = useState<boolean>(() => localStorage.getItem("theme") === "dark");
   const [view, setView] = useState<"calendar" | "settings" | "stats">("calendar");
+  const [todoPanelMinimized, setTodoPanelMinimized] = useState(false);
+  const [todoInput, setTodoInput] = useState("");
+  const [todoError, setTodoError] = useState<string | null>(null);
+  const [sendingTodos, setSendingTodos] = useState(false);
   const calendarRef = useRef<FullCalendar>(null);
 
   // To throttle horizontal scroll events
@@ -425,6 +443,47 @@ function App() {
     }
   }
 
+  async function sendTodosToOpy() {
+    const todoItems = parseTodoItems(todoInput);
+
+    if (todoItems.length === 0) {
+      const message = "Add at least one to-do item before sending.";
+      setTodoError(message);
+      setStatus(message);
+      return;
+    }
+
+    setSendingTodos(true);
+    setTodoError(null);
+
+    try {
+      const payload: SendTodoToAgentRequest = { todoItems };
+      const response = await fetch("/api/agent/todos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload)
+      });
+
+      const body = (await response.json().catch(() => ({}))) as
+        | Partial<SendTodoToAgentResponse>
+        | { error?: string };
+
+      if (!response.ok) {
+        throw new Error("error" in body ? body.error || "Could not send to Opy" : "Could not send to Opy");
+      }
+
+      setTodoInput("");
+      setStatus(body.message || `Sent ${todoItems.length} to-do item(s) to Opy`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not send to Opy";
+      setTodoError(message);
+      setStatus(message);
+    } finally {
+      setSendingTodos(false);
+    }
+  }
+
   const selectedGoogleCalendar = google.calendars?.find((item) => item.id === google.selectedCalendarId);
 
   if (view === "stats") {
@@ -622,6 +681,44 @@ function App() {
       )}
 
       <div className="calendar-wrapper-relative">
+        <aside className={`todo-panel ${todoPanelMinimized ? "minimized" : ""}`}>
+          <header className="todo-panel-header">
+            <h3>To-Do for Opy</h3>
+            <button
+              type="button"
+              className="ghost-btn"
+              onClick={() => setTodoPanelMinimized((prev) => !prev)}
+            >
+              {todoPanelMinimized ? "Expand" : "Minimize"}
+            </button>
+          </header>
+
+          {!todoPanelMinimized && (
+            <>
+              <p className="todo-panel-help">Enter one item per line. Bullets and numbers are okay.</p>
+              <textarea
+                className="todo-panel-input"
+                value={todoInput}
+                onChange={(e) => {
+                  setTodoInput(e.target.value);
+                  if (todoError) setTodoError(null);
+                }}
+                placeholder={"- Prep slides for Monday\n- Call dentist\n- Submit expense report"}
+                rows={8}
+              />
+              {todoError && <p className="todo-panel-error">{todoError}</p>}
+              <button
+                type="button"
+                className="sync-button todo-send-btn"
+                onClick={() => void sendTodosToOpy()}
+                disabled={sendingTodos}
+              >
+                {sendingTodos ? "Sending..." : "Send to Opy"}
+              </button>
+            </>
+          )}
+        </aside>
+
         <div className="category-chips-overlay">
           {categories.map((category: CalendarCategory) => (
             <span key={category.id} className="category-chip" style={{ backgroundColor: category.color }}>
